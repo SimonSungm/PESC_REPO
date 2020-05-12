@@ -682,6 +682,7 @@ asmlinkage long sys_adjtimex(struct timex __user *txc_p);
 
 /* kernel/timer.c */
 asmlinkage long sys_getpid(void);
+asmlinkage long sys_getcanary(void);
 asmlinkage long sys_getppid(void);
 asmlinkage long sys_getuid(void);
 asmlinkage long sys_geteuid(void);
