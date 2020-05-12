@@ -1,8 +1,8 @@
-## PESC: Per System-Call Stack Canary 
+# PESC: Per System-Call Stack Canary 
 
 该repo为PESC（https://dl.acm.org/doi/abs/10.1145/3374664.3375734）的repo，包含测试使用的内核以及PESC的代码补丁
 
-### 一.Repo结构
+## 一.Repo结构
 
 该Repo共包含7个分支，其内容具体如下：
 
@@ -32,9 +32,9 @@
   
   
   
-### 二.使用方法
+## 二.使用方法
 
-#### 1.前期准备
+### 1.前期准备
 
   - 系统环境：Ubuntu18.04
   - hikey960开发板（附带电源和type-c USB数据线）或其他硬件环境
@@ -44,21 +44,21 @@
   - android必要的开发工具
   - GCC 9.0及以上版本ARM64交叉编译器
 
-#### 2.内核编译
+### 2.内核编译及镜像刷写
 
-##### 启用per-task canary
+#### 启用per-task canary
 
 对于ARM64 Linux v5.0及以上版本的内核，请跳过此步骤。对于ARM64 Linux v5.0及以下版本的内核，需要首先启用per-task canary，本repo已经给出了启用per-task canary后的hikey960内核源码，即per_task分支，对于其他ARM64 Linux v5.0及以下版本的内核，请将per_task.diff中的代码补丁添加到内核中。
 
-##### 启用PESC
+#### 启用PESC
 
 本repo已经给出了启用PESC后的hikey960内核源码，pesc_pmc分支和pesc_rng分支分别对应启用PESC-PMC和PESC-RNG的分支。对于其他内核，请添加对应的代码补丁pesc_pmc.diff或pesc_rng.diff到内核中。
 
-##### 添加测试用系统调用
+#### 添加测试用系统调用
 
 如无需进行测试，则跳过此步骤。测试使用系统调用读取当前进行的canary，因此需要添加一个新的系统调用get_canary。对于hikey960，本repo已经提供了对应的内核源码，包含在pesc_pmc_verify分支和pesc_rng_verify分支中。对于其他内核，请根据verify.diff的内容自行添加系统调用。
 
-##### 编译内核
+#### 编译内核
 
 此步骤必须使用**GCC 9.0及以上版本**的的交叉编译器编译，对于hikey960内核，请使用如下命令编译，对于其他内核，请自行编译。
 
@@ -72,7 +72,7 @@ $ cp arch/arm64/boot/Image.gz-dtb $(AOSP)/device/linaro/hikey-kernel/Image.gz-dt
 $ cp arch/arm64/boot/dts/hisilicon/hi3660-hikey960.dtb  $(AOSP)/device/linaro/hikey-kernel/hi3660-hikey960.dtb-4.19
 ```
 
-##### 编译系统镜像
+#### 编译系统镜像
 
 对于hikey960请按如下步骤进行，其余环境请自行编译
 
@@ -83,7 +83,7 @@ $ lunch hikey960-userdebug
 $ make -j12
 ```
 
-##### 刷写镜像
+#### 刷写镜像
 
 对于hikey960请按如下步骤进行。
 
@@ -100,7 +100,7 @@ $ ./flash-all.sh
 
 4.关闭开关 3，然后重启开发板。
 
-##### 测试
+### 3.测试
 
 如无需测试，请跳过此步骤。测试前请切换到master分支。
 
