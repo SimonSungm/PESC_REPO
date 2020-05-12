@@ -1,0 +1,1 @@
+#define UTS_RELEASE "4.19.36-ge90b30c67"
