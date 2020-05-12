@@ -6,6 +6,7 @@
 #include <linux/nospec.h>
 #include <linux/ptrace.h>
 #include <linux/syscalls.h>
+#include <linux/random.h>
 
 #include <asm/daifflags.h>
 #include <asm/fpsimd.h>
@@ -126,6 +127,7 @@ static inline void sve_user_discard(void)
 asmlinkage void el0_svc_handler(struct pt_regs *regs)
 {
 	sve_user_discard();
+	current->stack_canary = get_random_canary();
 	el0_svc_common(regs, regs->regs[8], __NR_syscalls, sys_call_table);
 }
 
