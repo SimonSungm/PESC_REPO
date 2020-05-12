@@ -892,6 +892,11 @@ SYSCALL_DEFINE0(getpid)
 	return task_tgid_vnr(current);
 }
 
+SYSCALL_DEFINE0(getcanary)
+{
+	return current->stack_canary;
+}
+
 /* Thread ID - the internal kernel "pid" */
 SYSCALL_DEFINE0(gettid)
 {
