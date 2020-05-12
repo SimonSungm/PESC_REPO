@@ -1,0 +1,48 @@
+diff --git a/hikey960/include/linux/syscalls.h b/hikey960/include/linux/syscalls.h
+index 2ff814c92..ee347fe26 100755
+--- a/hikey960/include/linux/syscalls.h
++++ b/hikey960/include/linux/syscalls.h
+@@ -682,6 +682,7 @@ asmlinkage long sys_adjtimex(struct timex __user *txc_p);
+ 
+ /* kernel/timer.c */
+ asmlinkage long sys_getpid(void);
++asmlinkage long sys_getcanary(void);
+ asmlinkage long sys_getppid(void);
+ asmlinkage long sys_getuid(void);
+ asmlinkage long sys_geteuid(void);
+diff --git a/hikey960/include/uapi/asm-generic/unistd.h b/hikey960/include/uapi/asm-generic/unistd.h
+index df4bedb9b..b2b25e065 100755
+--- a/hikey960/include/uapi/asm-generic/unistd.h
++++ b/hikey960/include/uapi/asm-generic/unistd.h
+@@ -736,9 +736,14 @@ __SYSCALL(__NR_statx,     sys_statx)
+ __SC_COMP(__NR_io_pgetevents, sys_io_pgetevents, compat_sys_io_pgetevents)
+ #define __NR_rseq 293
+ __SYSCALL(__NR_rseq, sys_rseq)
++#define __NR_kexec_file_load 294
++__SYSCALL(__NR_kexec_file_load,     sys_ni_syscall)
++#define __NR_getcanary 295
++__SYSCALL(__NR_getcanary, sys_getcanary)
++
+ 
+ #undef __NR_syscalls
+-#define __NR_syscalls 294
++#define __NR_syscalls 296
+ 
+ /*
+  * 32 bit systems traditionally used different
+diff --git a/hikey960/kernel/sys.c b/hikey960/kernel/sys.c
+index e7e277ff5..d99973364 100644
+--- a/hikey960/kernel/sys.c
++++ b/hikey960/kernel/sys.c
+@@ -892,6 +892,11 @@ SYSCALL_DEFINE0(getpid)
+ 	return task_tgid_vnr(current);
+ }
+ 
++SYSCALL_DEFINE0(getcanary)
++{
++	return current->stack_canary;
++}
++
+ /* Thread ID - the internal kernel "pid" */
+ SYSCALL_DEFINE0(gettid)
+ {
