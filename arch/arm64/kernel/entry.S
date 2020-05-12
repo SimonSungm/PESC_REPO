@@ -178,6 +178,8 @@ alternative_cb_end
 	clear_gp_regs
 	mrs	x21, sp_el0
 	ldr_this_cpu	tsk, __entry_task, x20	// Ensure MDSCR_EL1.SS is clear,
+	mrs     x19, PMCCNTR_EL0
+	str     x19, [tsk, #TSK_STACK_CANARY]
 	ldr	x19, [tsk, #TSK_TI_FLAGS]	// since we can unmask debug
 	disable_step_tsk x19, x20		// exceptions when scheduling.
 
