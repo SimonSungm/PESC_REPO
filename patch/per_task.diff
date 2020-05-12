@@ -1,0 +1,82 @@
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 396637f87..663325308 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1218,6 +1218,15 @@ config RANDOMIZE_MODULE_REGION_FULL
+ 	  a limited range that contains the [_stext, _etext] interval of the
+ 	  core kernel, so branch relocations are always in range.
+ 
++
++config CC_HAVE_STACKPROTECTOR_SYSREG
++	def_bool $(cc-option,-mstack-protector-guard=sysreg -mstack-protector-guard-reg=sp_el0 -mstack-protector-guard-offset=0)
++
++config STACKPROTECTOR_PER_TASK
++	def_bool y
++	depends on STACKPROTECTOR && CC_HAVE_STACKPROTECTOR_SYSREG
++
++
+ endmenu
+ 
+ menu "Boot options"
+diff --git a/arch/arm64/Makefile b/arch/arm64/Makefile
+index 6f0470937..07317843c 100644
+--- a/arch/arm64/Makefile
++++ b/arch/arm64/Makefile
+@@ -56,6 +56,16 @@ KBUILD_AFLAGS	+= $(lseinstr) $(brokengasinst)
+ KBUILD_CFLAGS	+= $(call cc-option,-mabi=lp64)
+ KBUILD_AFLAGS	+= $(call cc-option,-mabi=lp64)
+ 
++ifeq ($(CONFIG_STACKPROTECTOR_PER_TASK),y)
++prepare: stack_protector_prepare
++stack_protector_prepare: prepare0
++	$(eval KBUILD_CFLAGS += -mstack-protector-guard=sysreg		  \
++				-mstack-protector-guard-reg=sp_el0	  \
++				-mstack-protector-guard-offset=$(shell	  \
++			awk '{if ($$2 == "TSK_STACK_CANARY") print $$3;}' \
++					include/generated/asm-offsets.h))
++endif
++
+ ifeq ($(CONFIG_CPU_BIG_ENDIAN), y)
+ KBUILD_CPPFLAGS	+= -mbig-endian
+ CHECKFLAGS	+= -D__AARCH64EB__
+diff --git a/arch/arm64/include/asm/stackprotector.h b/arch/arm64/include/asm/stackprotector.h
+index 58d15be11..5884a2b02 100644
+--- a/arch/arm64/include/asm/stackprotector.h
++++ b/arch/arm64/include/asm/stackprotector.h
+@@ -34,7 +34,8 @@ static __always_inline void boot_init_stack_canary(void)
+ 	canary &= CANARY_MASK;
+ 
+ 	current->stack_canary = canary;
+-	__stack_chk_guard = current->stack_canary;
++	if (!IS_ENABLED(CONFIG_STACKPROTECTOR_PER_TASK))
++		__stack_chk_guard = current->stack_canary;
+ }
+ 
+ #endif	/* _ASM_STACKPROTECTOR_H */
+diff --git a/arch/arm64/kernel/asm-offsets.c b/arch/arm64/kernel/asm-offsets.c
+index 323aeb5f2..65b8afc84 100644
+--- a/arch/arm64/kernel/asm-offsets.c
++++ b/arch/arm64/kernel/asm-offsets.c
+@@ -46,6 +46,9 @@ int main(void)
+   DEFINE(TSK_TI_TTBR0,		offsetof(struct task_struct, thread_info.ttbr0));
+ #endif
+   DEFINE(TSK_STACK,		offsetof(struct task_struct, stack));
++#ifdef CONFIG_STACKPROTECTOR
++  DEFINE(TSK_STACK_CANARY,	offsetof(struct task_struct, stack_canary));
++#endif
+   BLANK();
+   DEFINE(THREAD_CPU_CONTEXT,	offsetof(struct task_struct, thread.cpu_context));
+   BLANK();
+diff --git a/arch/arm64/kernel/process.c b/arch/arm64/kernel/process.c
+index 7f1628eff..6982fb9a2 100644
+--- a/arch/arm64/kernel/process.c
++++ b/arch/arm64/kernel/process.c
+@@ -59,7 +59,7 @@
+ #include <asm/processor.h>
+ #include <asm/stacktrace.h>
+ 
+-#ifdef CONFIG_STACKPROTECTOR
++#if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
+ #include <linux/stackprotector.h>
+ unsigned long __stack_chk_guard __read_mostly;
+ EXPORT_SYMBOL(__stack_chk_guard);

@@ -1,0 +1,95 @@
+diff --git a/arch/arm64/configs/hikey960_defconfig b/arch/arm64/configs/hikey960_defconfig
+index 9afa5c607..05c1d5098 100644
+--- a/arch/arm64/configs/hikey960_defconfig
++++ b/arch/arm64/configs/hikey960_defconfig
+@@ -63,7 +63,7 @@ CONFIG_PM_DEBUG=y
+ CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
+ CONFIG_ENERGY_MODEL=y
+ CONFIG_CPU_IDLE_GOV_LADDER=y
+-CONFIG_ARM_CPUIDLE=y
++# CONFIG_ARM_CPUIDLE=y
+ CONFIG_CPU_FREQ=y
+ CONFIG_CPU_FREQ_STAT=y
+ CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
+diff --git a/arch/arm64/kernel/entry.S b/arch/arm64/kernel/entry.S
+index 8556876c9..519f22c6a 100644
+--- a/arch/arm64/kernel/entry.S
++++ b/arch/arm64/kernel/entry.S
+@@ -178,6 +178,8 @@ alternative_cb_end
+ 	clear_gp_regs
+ 	mrs	x21, sp_el0
+ 	ldr_this_cpu	tsk, __entry_task, x20	// Ensure MDSCR_EL1.SS is clear,
++	mrs     x19, PMCCNTR_EL0
++	str     x19, [tsk, #TSK_STACK_CANARY]
+ 	ldr	x19, [tsk, #TSK_TI_FLAGS]	// since we can unmask debug
+ 	disable_step_tsk x19, x20		// exceptions when scheduling.
+ 
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index 2e8d94be1..7ddbbebed 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -60,3 +60,4 @@ obj-$(CONFIG_OCXL)		+= ocxl/
+ obj-$(CONFIG_MISC_RTSX)		+= cardreader/
+ obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
+ obj-$(CONFIG_HISI_HIKEY_USB)	+= hisi_hikey_usb.o
++obj-y				+= pesc.o
+\ No newline at end of file
+diff --git a/drivers/misc/pesc.c b/drivers/misc/pesc.c
+new file mode 100644
+index 000000000..2dc7a9439
+--- /dev/null
++++ b/drivers/misc/pesc.c
+@@ -0,0 +1,53 @@
++#include <linux/module.h>
++#include <linux/init_task.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
++#include <asm/uaccess.h>	/* for copy_*_user */
++#include <asm/perf_event.h>
++
++#define MAX_SIZE	1024
++
++static inline u32 armv8pmu_pmcr_read(void)
++{
++	return read_sysreg(pmcr_el0);
++}
++
++static inline void armv8pmu_pmcr_write(u32 val)
++{
++	val &= ARMV8_PMU_PMCR_MASK;
++	isb();
++	write_sysreg(val, pmcr_el0);
++}
++
++static void enable_cpu_counters(void* data) {
++	/* 
++	 * Disable any use space access by setting PMUSERENR_EL0.EN to 0:
++	 * While at EL0, PMUSERENR_EL0 is always RO. Accesses to the other Performance
++	 * Monitors registers at EL0 are trapped to EL1, unless overridden by one of
++	 * PMUSERENR_EL0.{ER, CR, SW}.
++	 */
++	asm volatile("msr PMUSERENR_EL0, %0" : : "r"(0x0)); 
++
++	/*
++	 * Performance Monitors Count Enable Set register
++	 * PMCNTENSET_EL0.C, bit [31], when 1, enables the cycle counter.
++	 */
++	asm volatile("msr PMCNTENSET_EL0, %0" :: "r" ((u32)(1<<31)));
++
++	armv8pmu_pmcr_write(armv8pmu_pmcr_read() | (ARMV8_PMU_PMCR_E|ARMV8_PMU_PMCR_LC));   
++	printk("CPU:%d PMCR%x\n", smp_processor_id(), armv8pmu_pmcr_read());
++}
++
++static int __init pesc_module_init(void) {
++
++	on_each_cpu(enable_cpu_counters, NULL, 1); 
++	return 0;
++}
++
++static void __exit pesc_module_exit(void) {
++    return;
++}
++
++MODULE_LICENSE("GPL");
++module_init(pesc_module_init);
++module_exit(pesc_module_exit);
