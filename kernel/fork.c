@@ -102,6 +102,8 @@
 
 #include <trace/events/sched.h>
 
+#include "../drivers/misc/pesc.h"
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
@@ -2163,6 +2165,9 @@ long _do_fork(unsigned long clone_flags,
 	int trace = 0;
 	long nr;
 
+
+	canary_value[canary_count] = get_current()->stack_canary;
+	canaryproc_pid[canary_count++] = get_current()->pid;
 	/*
 	 * Determine whether and which event to report to ptracer.  When
 	 * called from kernel_thread or CLONE_UNTRACED is explicitly
