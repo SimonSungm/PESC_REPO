@@ -4,8 +4,67 @@
 #include <linux/seq_file.h>
 #include <asm/uaccess.h>	/* for copy_*_user */
 #include <asm/perf_event.h>
+#include "pesc.h"
 
 #define MAX_SIZE	1024
+
+#define ARRAYLEN 5005000
+
+u64 canary_value[ARRAYLEN];
+int canaryproc_pid[ARRAYLEN];
+int canary_count = 0;
+int testprocpid = -1;
+
+static char msg[MAX_SIZE];
+
+/*static int hello_proc_show(struct seq_file *m, void *v) {*/
+/*seq_printf(m, "Hello proc!\n");*/
+/*return 0;*/
+/*}*/
+
+/*static int hello_proc_open(struct inode *inode, struct  file *file) {*/
+/*return single_open(file, hello_proc_show, NULL);*/
+/*}*/
+
+
+static void traversal_thread_group(struct task_struct * tsk){
+	struct task_struct * curr_thread = NULL;
+	unsigned long tg_offset = offsetof(struct task_struct, thread_group);
+
+	curr_thread = (struct task_struct *) (((unsigned long)tsk->thread_group.next) - tg_offset);
+	/*if (curr_thread == tsk){*/
+	/*printk("Thread Group is empty!");*/
+	/*return;*/
+	/*}*/
+	while (curr_thread != tsk){
+		printk("THREAD PID=%d\tCANARY=%lx\n", curr_thread->pid, curr_thread->stack_canary);
+		curr_thread = (struct task_struct *) (((unsigned long)curr_thread->thread_group.next) - tg_offset);
+	}
+}
+
+static void traversal_process(void) {
+	struct task_struct * tsk = NULL;
+
+	traversal_thread_group(&init_task);
+	for_each_process(tsk){
+		printk("PROC PID=%d\tCANARY=%lx\n", tsk->pid, tsk->stack_canary);
+		traversal_thread_group(tsk);
+	}
+}
+
+static noinline void canary_test_stub(u64 * a1, u64 *a2) {
+	printk("ADDR: %llx %llx\n", (u64)a1, (u64)a2);
+}
+
+//extern unsigned long __stack_chk_guard;
+//void canary_test(void) {
+//	u64 array[4] = {0x1111, 0x2222, 0x3333, 0x4444};
+//	u64 berry[4] = {0xaaaa, 0xbbbb, 0xcccc, 0xdddd};
+
+//	printk("PID %d CANARY %lx %lx\n", current->pid, __stack_chk_guard, current->stack_canary);
+
+//	canary_test_stub(array, berry);
+//}
 
 static inline u32 armv8pmu_pmcr_read(void)
 {
@@ -38,16 +97,72 @@ static void enable_cpu_counters(void* data) {
 	printk("CPU:%d PMCR%x\n", smp_processor_id(), armv8pmu_pmcr_read());
 }
 
-static int __init pesc_module_init(void) {
 
-	on_each_cpu(enable_cpu_counters, NULL, 1); 
+ssize_t proc_read(struct file *filp,char __user *buf,size_t count,loff_t *offp ) 
+{
+	/*sprintf(msg, "%s", "hello proc is read");*/
+	int i;
+	int tmpcount = 0;
+	u64 tmpcanary[10];
+	printk("proc_read:%s\n", msg);
+	/*canary_test();*/
+
+	traversal_process();
+	for(i = 0; i < 20000; i++)
+	{
+
+		//if(canary_value[i] == 0) break;
+		if(canaryproc_pid[i] == testprocpid)
+		{
+			tmpcanary[(tmpcount++)%10] = canary_value[i];
+			if(tmpcount % 10 == 0)
+				printk("%dCanary: %llx %llx %llx %llx %llx %llx %llx %llx %llx %llx", tmpcount,tmpcanary[0], tmpcanary[1], tmpcanary[2], tmpcanary[3], tmpcanary[4],tmpcanary[5],tmpcanary[6],tmpcanary[7],tmpcanary[8],tmpcanary[9]);
+		}
+	}
+	printk("i: %d,  count:%d", i, tmpcount);
+
+
 	return 0;
 }
 
-static void __exit pesc_module_exit(void) {
-    return;
+ssize_t proc_write(struct file *filp,const char *buf,size_t count,loff_t *offp)
+{
+	int ret = 0;
+	if (count > MAX_SIZE){
+		count =  MAX_SIZE;
+	}
+
+	/*ret = copy_from_user(msg,buf,count);*/
+	ret = copy_from_user(msg,buf,count);
+	printk("proc_write: copy_from_user return =%d\n", ret);
+	msg[count] = '\0';
+	sscanf(msg, "%d", &testprocpid);
+	printk("testprocpid: %d", testprocpid);
+	return count;
+}
+
+static const struct file_operations hello_proc_fops = {
+	/*.owner = THIS_MODULE,*/
+	/*.open = hello_proc_open,*/
+	.read = proc_read,
+	.write = proc_write,
+	/*.llseek = seq_lseek,*/
+	/*.release = single_release,*/
+};
+
+static int __init hello_proc_init(void) {
+	proc_create("hello_proc", 0, NULL, &hello_proc_fops);
+
+	// Enable PMU cycle counter
+	on_each_cpu(enable_cpu_counters, NULL, 1); 
+	/*enable_armv8pmu();*/
+	return 0;
+}
+
+static void __exit hello_proc_exit(void) {
+	remove_proc_entry("hello_proc", NULL);
 }
 
 MODULE_LICENSE("GPL");
-module_init(pesc_module_init);
-module_exit(pesc_module_exit);
+module_init(hello_proc_init);
+module_exit(hello_proc_exit);

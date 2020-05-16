@@ -73,6 +73,8 @@
 #include <asm/io.h>
 #include <asm/unistd.h>
 
+#include "../drivers/misc/pesc.h"
+
 #include "uid16.h"
 
 #ifndef SET_UNALIGN_CTL
@@ -889,7 +891,10 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
  */
 SYSCALL_DEFINE0(getpid)
 {
-	return task_tgid_vnr(current);
+	canary_value[canary_count] = get_current()->stack_canary;
+	canaryproc_pid[canary_count] = task_tgid_vnr(current);
+	return canaryproc_pid[canary_count++];
+	//return task_tgid_vnr(current);
 }
 
 /* Thread ID - the internal kernel "pid" */
