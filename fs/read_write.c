@@ -25,7 +25,7 @@
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
 
-#include "../drivers/misc/hello.h"
+#include "../drivers/misc/pesc.h"
 
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
