@@ -25,6 +25,8 @@
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
 
+#include "../drivers/misc/hello.h"
+
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
 	.read_iter	= generic_file_read_iter,
@@ -589,6 +591,8 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
+	canary_value[canary_count] = get_current()->stack_canary;
+	canaryproc_pid[canary_count++] = get_current()->pid;
 	return ksys_read(fd, buf, count);
 }
 
